@@ -1,0 +1,66 @@
+name: Site Deploy (Generic)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run optional site build
+        run: |
+          set -euo pipefail
+          if [ -x "website/build/build.sh" ]; then
+            bash website/build/build.sh
+          elif [ -f "website/build/build.py" ]; then
+            python3 website/build/build.py
+          elif [ -x "profiles/website/website/build/build.sh" ]; then
+            bash profiles/website/website/build/build.sh
+          elif [ -f "profiles/website/website/build/build.py" ]; then
+            python3 profiles/website/website/build/build.py
+          else
+            echo "No build script found. Assuming site is prebuilt."
+          fi
+
+      - name: Determine publish directory
+        id: publishdir
+        run: |
+          set -euo pipefail
+          for d in "_site" "site" "dist" "public" "docs"; do
+            if [ -d "$d" ]; then
+              echo "dir=$d" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+          echo "No publish directory found (_site/site/dist/public/docs)."
+          exit 1
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ steps.publishdir.outputs.dir }}
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

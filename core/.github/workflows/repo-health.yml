@@ -1,0 +1,72 @@
+name: Repo Health (Generic)
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Basic file presence checks
+        run: |
+          set -euo pipefail
+
+          echo "Checking baseline repository hygiene..."
+
+          warn() { echo "::warning::$*"; }
+          note() { echo "$*"; }
+
+          if [ ! -f "README.md" ] && [ ! -f "readme.md" ]; then
+            warn "Missing README.md"
+          else
+            note "README present"
+          fi
+
+          if [ ! -f "LICENSE" ] && [ ! -f "LICENSE.md" ]; then
+            warn "Missing LICENSE (recommended)"
+          else
+            note "LICENSE present"
+          fi
+
+          if [ -f ".github/FUNDING.yml" ]; then
+            note "FUNDING config present"
+          else
+            warn "No FUNDING.yml found (optional, but useful for sustainability)"
+          fi
+
+          python3 - <<'PY'
+          import pathlib
+
+          bad = []
+          for p in pathlib.Path(".").rglob("*.md"):
+            if ".git" in p.parts:
+              continue
+            try:
+              b = p.read_bytes()
+            except Exception:
+              continue
+            if b and not b.endswith(b"\n"):
+              bad.append(str(p))
+
+          if bad:
+            print("::warning::Markdown files missing trailing newline:")
+            for f in bad[:50]:
+              print("::warning:: - " + f)
+            if len(bad) > 50:
+              print(f"::warning::(and {len(bad)-50} more)")
+          else:
+            print("Markdown newline check: OK")
+          PY
+
+      - name: Summarize
+        run: |
+          echo "Repo Health baseline checks completed."

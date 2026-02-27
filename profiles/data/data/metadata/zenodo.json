@@ -1,0 +1,11 @@
+{
+  "title": "Dataset Release (Template)",
+  "upload_type": "dataset",
+  "description": "Replace this template with your dataset description.",
+  "creators": [
+    {
+      "name": "Your Name"
+    }
+  ],
+  "access_right": "open"
+}

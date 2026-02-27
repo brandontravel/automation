@@ -1,0 +1,45 @@
+name: Research Release (Attach Artifacts)
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g., paper-v1.0.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build research outputs (same logic as build workflow)
+        run: |
+          set -euo pipefail
+          if [ -x "profiles/research/research/build/build_pdf.sh" ]; then
+            bash profiles/research/research/build/build_pdf.sh
+          elif [ -f "profiles/research/research/build/build_pdf.py" ]; then
+            python3 profiles/research/research/build/build_pdf.py
+          elif [ -x "research/build/build_pdf.sh" ]; then
+            bash research/build/build_pdf.sh
+          elif [ -f "research/build/build_pdf.py" ]; then
+            python3 research/build/build_pdf.py
+          else
+            echo "No research build script found."
+            exit 1
+          fi
+
+      - name: Create GitHub Release and attach outputs
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag }}
+          name: ${{ inputs.tag }}
+          generate_release_notes: true
+          files: |
+            research/dist/**
+            profiles/research/research/dist/**

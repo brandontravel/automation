@@ -1,0 +1,38 @@
+name: Data Validate
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches: ["main"]
+    paths:
+      - "data/**"
+      - "profiles/data/**"
+      - ".github/workflows/data-validate.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python (for validation scripts)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Run data validation (generic)
+        run: |
+          set -euo pipefail
+          if [ -f "profiles/data/data/validate/validate_data.py" ]; then
+            python3 profiles/data/data/validate/validate_data.py
+          elif [ -f "data/validate/validate_data.py" ]; then
+            python3 data/validate/validate_data.py
+          else
+            echo "No validate_data.py found."
+            exit 1
+          fi

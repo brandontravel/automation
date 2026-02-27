@@ -1,0 +1,87 @@
+name: Link Check (Generic)
+
+on:
+  workflow_dispatch:
+  pull_request:
+  schedule:
+    - cron: "0 10 * * 1" # Mondays 10:00 UTC
+
+permissions:
+  contents: read
+
+jobs:
+  linkcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract links from Markdown (lightweight)
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import re, pathlib
+
+          url_re = re.compile(r'https?://[^\s\)\]">]+')
+          urls = set()
+
+          for p in pathlib.Path(".").rglob("*.md"):
+            if ".git" in p.parts:
+              continue
+            try:
+              text = p.read_text(encoding="utf-8", errors="ignore")
+            except Exception:
+              continue
+            for m in url_re.findall(text):
+              m = m.rstrip(".,;:!?)\"]'")
+              urls.add(m)
+
+          out = pathlib.Path("linkcheck-urls.txt")
+          out.write_text("\n".join(sorted(urls)) + ("\n" if urls else ""), encoding="utf-8")
+          print(f"Found {len(urls)} unique URLs")
+          PY
+
+      - name: Check links (best-effort, low-assumption)
+        run: |
+          set -euo pipefail
+
+          if [ ! -s linkcheck-urls.txt ]; then
+            echo "No URLs found in markdown. Nothing to check."
+            exit 0
+          fi
+
+          STRICT="${STRICT:-0}"
+          failures=0
+          total=0
+
+          while IFS= read -r url; do
+            [ -n "$url" ] || continue
+            total=$((total+1))
+
+            code="$(curl -sS -I -L --max-time 15 --connect-timeout 7 -o /dev/null -w "%{http_code}" "$url" || true)"
+            if [ "$code" = "000" ] || [ "$code" = "405" ] || [ "$code" = "403" ]; then
+              code="$(curl -sS -L --max-time 20 --connect-timeout 7 -o /dev/null -w "%{http_code}" "$url" || true)"
+            fi
+
+            if [[ "$code" =~ ^2|^3 ]]; then
+              echo "OK   [$code] $url"
+            else
+              failures=$((failures+1))
+              echo "::warning::BAD [$code] $url"
+            fi
+          done < linkcheck-urls.txt
+
+          echo "Checked $total URLs, warnings: $failures"
+
+          if [ "$STRICT" = "1" ] && [ "$failures" -gt 0 ]; then
+            echo "::error::Strict mode enabled and $failures links failed."
+            exit 1
+          fi
+
+      - name: Upload URL list (debug aid)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linkcheck-urls
+          path: linkcheck-urls.txt
+          if-no-files-found: ignore

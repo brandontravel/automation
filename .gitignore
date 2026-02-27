@@ -1,0 +1,6 @@
+# build/dist outputs
+**/dist/
+**/.venv/
+**/__pycache__/
+*.pyc
+.DS_Store

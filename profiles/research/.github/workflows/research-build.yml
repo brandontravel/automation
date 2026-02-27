@@ -1,0 +1,52 @@
+name: Research Build (Artifacts)
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches: ["main"]
+    paths:
+      - "research/**"
+      - "profiles/research/**"
+      - ".github/workflows/research-build.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python (optional)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Build research outputs (generic placeholder)
+        run: |
+          set -euo pipefail
+          if [ -x "profiles/research/research/build/build_pdf.sh" ]; then
+            bash profiles/research/research/build/build_pdf.sh
+          elif [ -f "profiles/research/research/build/build_pdf.py" ]; then
+            python3 profiles/research/research/build/build_pdf.py
+          elif [ -x "research/build/build_pdf.sh" ]; then
+            bash research/build/build_pdf.sh
+          elif [ -f "research/build/build_pdf.py" ]; then
+            python3 research/build/build_pdf.py
+          else
+            echo "No research build script found."
+            exit 1
+          fi
+
+      - name: Upload build artifacts (if present)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: research-build
+          path: |
+            research/dist/**
+            profiles/research/research/dist/**
+          if-no-files-found: ignore

@@ -1,0 +1,58 @@
+name: Newsletter Draft (Assemble)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 12 * * 1" # Mondays 12:00 UTC
+
+permissions:
+  contents: write
+
+jobs:
+  assemble:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python (optional)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Assemble issue (prefers shell, falls back to python)
+        run: |
+          set -euo pipefail
+          if [ -x "profiles/newsletter/newsletter/assemble/assemble.sh" ]; then
+            bash profiles/newsletter/newsletter/assemble/assemble.sh
+          elif [ -f "profiles/newsletter/newsletter/assemble/assemble.py" ]; then
+            python3 profiles/newsletter/newsletter/assemble/assemble.py
+          elif [ -x "newsletter/assemble/assemble.sh" ]; then
+            bash newsletter/assemble/assemble.sh
+          elif [ -f "newsletter/assemble/assemble.py" ]; then
+            python3 newsletter/assemble/assemble.py
+          else
+            echo "No assembler found. Add newsletter/assemble or profiles/newsletter/newsletter/assemble."
+            exit 1
+          fi
+
+      - name: Commit assembled draft (if changed)
+        run: |
+          set -euo pipefail
+          git config user.name "automation-bot"
+          git config user.email "automation-bot@users.noreply.github.com"
+
+          if [ -d "newsletter/dist" ]; then
+            git add newsletter/dist || true
+          fi
+          if [ -d "profiles/newsletter/newsletter/dist" ]; then
+            git add profiles/newsletter/newsletter/dist || true
+          fi
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+
+          git commit -m "chore(newsletter): assemble draft"
+          git push

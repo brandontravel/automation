@@ -1,0 +1,33 @@
+name: Site Link Check (Generic)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 9 * * 1" # Mondays 09:00 UTC
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python (for checks)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Run optional link check script
+        run: |
+          set -euo pipefail
+          if [ -f "website/checks/check_links.py" ]; then
+            python3 website/checks/check_links.py
+          elif [ -f "profiles/website/website/checks/check_links.py" ]; then
+            python3 profiles/website/website/checks/check_links.py
+          else
+            echo "No check_links.py found. Add website/checks/check_links.py if you want automated checking."
+            exit 0
+          fi
